@@ -12,7 +12,7 @@ const LANGUAGES: { code: Language; flag: string; label: string }[] = [
   { code: 'fr', flag: '🇫🇷', label: 'Français' },
 ]
 
-const COPY: Record<
+const COPY: Record
   Language,
   { title: string; roomLabel: string; confirmation: string }
 > = {
@@ -145,6 +145,7 @@ function ServiceIcon({ id }: { id: string }) {
 
 function App() {
   const [language, setLanguage] = useState<Language>('en')
+  const [languageSelected, setLanguageSelected] = useState(false)
   const [confirmation, setConfirmation] = useState<string | null>(null)
 
   const showConfirmation = useCallback(() => {
@@ -164,6 +165,34 @@ function App() {
   }, [language])
 
   const { title, roomLabel } = COPY[language]
+
+  if (!languageSelected) {
+    return (
+      <div className="guest-app">
+        <header className="guest-header">
+          <div className="room-badge">
+            <span className="room-badge__number">🏨</span>
+          </div>
+        </header>
+        <main className="guest-main">
+          <h1 className="guest-title">Select your language</h1>
+          <div className="service-grid">
+            {LANGUAGES.map(({ code, flag, label }) => (
+              <button
+                key={code}
+                type="button"
+                className="service-btn"
+                onClick={() => { setLanguage(code); setLanguageSelected(true) }}
+              >
+                <span style={{ fontSize: '2rem' }}>{flag}</span>
+                <span className="service-btn__label">{label}</span>
+              </button>
+            ))}
+          </div>
+        </main>
+      </div>
+    )
+  }
 
   return (
     <div className="guest-app">
