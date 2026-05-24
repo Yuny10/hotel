@@ -12,7 +12,7 @@ const LANGUAGES: { code: Language; flag: string; label: string }[] = [
   { code: 'fr', flag: '🇫🇷', label: 'Français' },
 ]
 
-const COPY: Record
+const COPY: Record <
   Language,
   { title: string; roomLabel: string; confirmation: string }
 > = {
