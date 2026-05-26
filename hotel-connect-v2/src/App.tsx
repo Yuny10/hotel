@@ -5,36 +5,87 @@ const ROOM_NUMBER = 203
 
 type Language = 'es' | 'en' | 'de' | 'fr'
 
-const LANGUAGES: { code: Language; flag: string; label: string }[] = [
-  { code: 'es', flag: '🇪🇸', label: 'Español' },
-  { code: 'en', flag: '🇬🇧', label: 'English' },
-  { code: 'de', flag: '🇩🇪', label: 'Deutsch' },
-  { code: 'fr', flag: '🇫🇷', label: 'Français' },
+const LANGUAGES: { code: Language; flag: string; flagCdn: string; label: string }[] = [
+  { code: 'es', flag: '🇪🇸', flagCdn: 'es', label: 'Español' },
+  { code: 'en', flag: '🇬🇧', flagCdn: 'gb', label: 'English' },
+  { code: 'de', flag: '🇩🇪', flagCdn: 'de', label: 'Deutsch' },
+  { code: 'fr', flag: '🇫🇷', flagCdn: 'fr', label: 'Français' },
 ]
 
-const COPY: Record <
+type ServiceId = 'towels' | 'cleaning' | 'ac' | 'minibar' | 'maintenance' | 'noise'
+
+const COPY: Record<
   Language,
-  { title: string; roomLabel: string; confirmation: string }
+  {
+    title: string
+    roomLabel: string
+    confirmations: Record<ServiceId, string>
+  }
 > = {
   es: {
     title: '¿Cómo podemos ayudarte?',
     roomLabel: 'Habitación',
-    confirmation: `Solicitud enviada para la habitación ${ROOM_NUMBER}.`,
+    confirmations: {
+      towels:
+        'Solicitud enviada. En breve, el servicio de limpieza le facilitará las toallas.',
+      cleaning:
+        'Solicitud enviada. En breve, el equipo de limpieza atenderá su habitación.',
+      ac: 'Solicitud enviada. En breve, mantenimiento revisará el aire acondicionado.',
+      minibar:
+        'Solicitud enviada. En breve, el equipo del hotel atenderá su solicitud de minibar.',
+      maintenance:
+        'Solicitud enviada. En breve, el equipo de mantenimiento atenderá su incidencia.',
+      noise:
+        'Solicitud enviada. En breve, el equipo del hotel atenderá su aviso de ruido.',
+    },
   },
   en: {
     title: 'How can we help you?',
     roomLabel: 'Room',
-    confirmation: `Request sent for room ${ROOM_NUMBER}.`,
+    confirmations: {
+      towels: 'Request sent. Housekeeping will bring towels shortly.',
+      cleaning: 'Request sent. Housekeeping will attend your room shortly.',
+      ac: 'Request sent. Maintenance will check the air conditioning shortly.',
+      minibar:
+        'Request sent. The hotel team will attend your minibar request shortly.',
+      maintenance: 'Request sent. The maintenance team will assist you shortly.',
+      noise:
+        'Request sent. The hotel team will address the noise concern shortly.',
+    },
   },
   de: {
     title: 'Wie können wir Ihnen helfen?',
     roomLabel: 'Zimmer',
-    confirmation: `Anfrage für Zimmer ${ROOM_NUMBER} gesendet.`,
+    confirmations: {
+      towels:
+        'Anfrage gesendet. Der Reinigungsservice bringt Ihnen in Kürze Handtücher.',
+      cleaning:
+        'Anfrage gesendet. Das Reinigungsteam wird Ihr Zimmer in Kürze betreuen.',
+      ac: 'Anfrage gesendet. Die Wartung wird die Klimaanlage in Kürze überprüfen.',
+      minibar:
+        'Anfrage gesendet. Das Hotelteam wird Ihre Minibar-Anfrage in Kürze bearbeiten.',
+      maintenance:
+        'Anfrage gesendet. Das Wartungsteam wird Ihnen in Kürze helfen.',
+      noise:
+        'Anfrage gesendet. Das Hotelteam wird sich in Kürze um die Lärmbelästigung kümmern.',
+    },
   },
   fr: {
     title: 'Comment pouvons-nous vous aider ?',
     roomLabel: 'Chambre',
-    confirmation: `Demande envoyée pour la chambre ${ROOM_NUMBER}.`,
+    confirmations: {
+      towels:
+        'Demande envoyée. Le service de ménage vous apportera des serviettes sous peu.',
+      cleaning:
+        'Demande envoyée. L’équipe de ménage s’occupera bientôt de votre chambre.',
+      ac: 'Demande envoyée. La maintenance vérifiera bientôt la climatisation.',
+      minibar:
+        'Demande envoyée. L’équipe de l’hôtel traitera bientôt votre demande minibar.',
+      maintenance:
+        'Demande envoyée. L’équipe de maintenance vous assistera sous peu.',
+      noise:
+        'Demande envoyée. L’équipe de l’hôtel traitera bientôt votre signalement de bruit.',
+    },
   },
 }
 
@@ -147,10 +198,15 @@ function App() {
   const [language, setLanguage] = useState<Language>('en')
   const [languageSelected, setLanguageSelected] = useState(false)
   const [confirmation, setConfirmation] = useState<string | null>(null)
+  const [selectedService, setSelectedService] = useState<ServiceId | null>(null)
 
-  const showConfirmation = useCallback(() => {
-    setConfirmation(COPY[language].confirmation)
-  }, [language])
+  const showConfirmation = useCallback(
+    (serviceId: ServiceId) => {
+      setSelectedService(serviceId)
+      setConfirmation(COPY[language].confirmations[serviceId])
+    },
+    [language],
+  )
 
   useEffect(() => {
     if (!confirmation) return
@@ -159,10 +215,10 @@ function App() {
   }, [confirmation])
 
   useEffect(() => {
-    if (confirmation) {
-      setConfirmation(COPY[language].confirmation)
+    if (selectedService) {
+      setConfirmation(COPY[language].confirmations[selectedService])
     }
-  }, [language])
+  }, [language, selectedService])
 
   const { title, roomLabel } = COPY[language]
 
@@ -171,24 +227,47 @@ function App() {
       <div className="guest-app">
         <header className="guest-header">
           <div className="room-badge">
-            <span className="room-badge__number">🏨</span>
+            <span className="room-badge__number" aria-hidden="true">
+              🏨
+            </span>
           </div>
         </header>
+
         <main className="guest-main">
           <h1 className="guest-title">Select your language</h1>
-          <div className="service-grid">
-            {LANGUAGES.map(({ code, flag, label }) => (
+
+          <nav className="language-nav" aria-label="Language">
+            {LANGUAGES.map(({ code, flagCdn, label }) => (
               <button
                 key={code}
                 type="button"
-                className="service-btn"
-                onClick={() => { setLanguage(code); setLanguageSelected(true) }}
+                className="language-btn"
+                onClick={() => {
+                  setLanguage(code)
+                  setLanguageSelected(true)
+                }}
               >
-                <span style={{ fontSize: '2rem' }}>{flag}</span>
-                <span className="service-btn__label">{label}</span>
+                <span className="language-btn__flag" aria-hidden="true">
+                  <img
+                    src={`https://flagcdn.com/w40/${flagCdn}.png`}
+                    srcSet={`https://flagcdn.com/w80/${flagCdn}.png 2x`}
+                    alt=""
+                    width={24}
+                    height={18}
+                    loading="lazy"
+                    decoding="async"
+                    style={{
+                      display: 'block',
+                      borderRadius: '3px',
+                      objectFit: 'cover',
+                      boxShadow: '0 1px 4px rgba(0, 0, 0, 0.25)',
+                    }}
+                  />
+                </span>
+                <span className="language-btn__label">{label}</span>
               </button>
             ))}
-          </div>
+          </nav>
         </main>
       </div>
     )
@@ -196,6 +275,13 @@ function App() {
 
   return (
     <div className="guest-app">
+      <button
+        type="button"
+        className="back-btn"
+        onClick={() => setLanguageSelected(false)}
+      >
+        ← Back
+      </button>
       <header className="guest-header">
         <div className="room-badge">
           <span className="room-badge__label">{roomLabel}</span>
@@ -229,7 +315,7 @@ function App() {
               key={id}
               type="button"
               className="service-btn"
-              onClick={showConfirmation}
+              onClick={() => showConfirmation(id as ServiceId)}
             >
               <span className="service-btn__icon" aria-hidden="true">
                 <ServiceIcon id={id} />
