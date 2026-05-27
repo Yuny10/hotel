@@ -208,16 +208,13 @@ function App() {
       setSelectedService(serviceId)
       setConfirmation(COPY[language].confirmations[serviceId])
 
-      fetch(N8N_WEBHOOK_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          room: ROOM_NUMBER,
-          service: serviceId,
-          language,
-          timestamp: new Date().toISOString(),
-        }),
-      }).catch(() => {})
+      const params = new URLSearchParams({
+        room: String(ROOM_NUMBER),
+        service: serviceId,
+        language,
+        timestamp: new Date().toISOString(),
+      })
+      fetch(`${N8N_WEBHOOK_URL}?${params}`, { method: 'GET' }).catch(() => {})
     },
     [language],
   )
