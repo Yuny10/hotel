@@ -1,5 +1,13 @@
 {
-  "dependencies": {
-    "react-router-dom": "^7.15.1"
+  "name": "hotel-connect-v2-root",
+  "private": true,
+  "workspaces": [
+    "hotel-connect-v2"
+  ],
+  "scripts": {
+    "dev": "npm -w hotel-connect-v2 run dev",
+    "build": "npm -w hotel-connect-v2 run build",
+    "preview": "npm -w hotel-connect-v2 run preview",
+    "lint": "npm -w hotel-connect-v2 run lint"
   }
 }
