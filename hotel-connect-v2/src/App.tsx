@@ -3,6 +3,9 @@ import './App.css'
 
 const ROOM_NUMBER = 203
 
+const N8N_WEBHOOK_URL =
+  'https://hotelconnect.app.n8n.cloud/webhook/1da76843-0af4-4626-9f08-34c4ceae05ad'
+
 type Language = 'es' | 'en' | 'de' | 'fr'
 
 const LANGUAGES: { code: Language; flag: string; flagCdn: string; label: string }[] = [
@@ -204,6 +207,17 @@ function App() {
     (serviceId: ServiceId) => {
       setSelectedService(serviceId)
       setConfirmation(COPY[language].confirmations[serviceId])
+
+      fetch(N8N_WEBHOOK_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          room: ROOM_NUMBER,
+          service: serviceId,
+          language,
+          timestamp: new Date().toISOString(),
+        }),
+      }).catch(() => {})
     },
     [language],
   )
