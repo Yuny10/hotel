@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import './App.css'
+import { supabase } from './supabase'
 
 const ROOM_NUMBER = 203
 
@@ -221,11 +222,25 @@ function App() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          room: ROOM_NUMBER,
-          service: serviceId,
-          language,
+          habitacion: ROOM_NUMBER,
+          tipo_incidencia: serviceId,
+          idioma: language,
+          estado: 'pendiente',
         }),
       }).catch(() => {})
+
+      supabase
+        .from('incidencias')
+        .insert({
+          habitacion: ROOM_NUMBER,
+          tipo_incidencia: serviceId,
+          idioma: language,
+          estado: 'pendiente',
+          hora_inicio: new Date().toISOString(),
+        })
+        .then(({ error }) => {
+          if (error) console.error('Supabase insert error:', error)
+        })
     },
     [language],
   )
