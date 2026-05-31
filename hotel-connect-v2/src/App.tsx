@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
+import { BrowserRouter, Route, Routes } from 'react-router-dom'
 import './App.css'
+import Dashboard from './Dashboard'
 import { supabase } from './supabase'
 
 const ROOM_NUMBER = 203
@@ -205,7 +207,7 @@ function ServiceIcon({ id }: { id: string }) {
   }
 }
 
-function App() {
+function GuestApp() {
   const [language, setLanguage] = useState<Language>('en')
   const [languageSelected, setLanguageSelected] = useState(false)
   const [showWelcome, setShowWelcome] = useState(true)
@@ -411,6 +413,17 @@ function App() {
         <p className="confirmation__text">{confirmation ?? ''}</p>
       </div>
     </div>
+  )
+}
+
+function App() {
+  return (
+    <BrowserRouter>
+      <Routes>
+        <Route path="/dashboard" element={<Dashboard />} />
+        <Route path="*" element={<GuestApp />} />
+      </Routes>
+    </BrowserRouter>
   )
 }
 
