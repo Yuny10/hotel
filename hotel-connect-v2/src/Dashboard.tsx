@@ -168,15 +168,9 @@ function formatMetricaMinutos(minutos: number | null): string {
 function EmptyIncidenciasRow({ message }: { message: string }) {
   return (
     <tr className="incidents-table__empty-row">
-      {TABLE_COLUMNS.map((col, index) => (
-        <td key={col} className="incidents-table__empty-slot">
-          {index === 0 ? (
-            <span className="incidents-table__empty-banner">{message}</span>
-          ) : (
-            '\u00a0'
-          )}
-        </td>
-      ))}
+      <td colSpan={TABLE_COLUMNS.length} className="incidents-table__empty-slot">
+        <span className="incidents-table__empty-banner">{message}</span>
+      </td>
     </tr>
   )
 }
@@ -345,7 +339,7 @@ export default function Dashboard() {
         </div>
       </header>
 
-      <main className="dashboard__main">
+      <main className="dashboard__main dashboard-operativo">
         <section className="dashboard-overview" aria-label="Resumen del dashboard">
           <div className="dashboard-section">
             <h2 className="dashboard-section__heading">Contadores</h2>
