@@ -100,13 +100,13 @@ function tiempoResolucionPersistido(inc: IncidenciaRow): number | null {
   return inc.tiempo_resolucion_min ?? inc.tiempo_resolucion
 }
 
-/** Pendiente: reacción en vivo. En proceso: resolución en vivo. Resuelta: solo Supabase. */
+/** Solo valores persistidos o contador real de trabajo tras aceptar (nunca simulados en pendiente). */
 function tiemposVistaOperativos(inc: IncidenciaRow, ahora: Date): TiemposVista {
   if (esPendienteEfectivo(inc)) {
     return {
       horaAceptacion: null,
       horaResolucion: null,
-      tiempoReaccion: minutosEntre(inc.hora_creacion, ahora),
+      tiempoReaccion: null,
       tiempoResolucion: null,
       tiempoTotal: null,
     }
@@ -118,7 +118,7 @@ function tiemposVistaOperativos(inc: IncidenciaRow, ahora: Date): TiemposVista {
       horaAceptacion,
       horaResolucion: null,
       tiempoReaccion: tiempoRespuestaPersistido(inc),
-      tiempoResolucion: minutosEntre(horaAceptacion, ahora),
+      tiempoResolucion: horaAceptacion ? minutosEntre(horaAceptacion, ahora) : null,
       tiempoTotal: null,
     }
   }
