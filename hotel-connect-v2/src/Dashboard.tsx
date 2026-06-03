@@ -132,7 +132,7 @@ const TABLE_COLUMNS = [
   'Tipo Incidencia',
   'Departamento',
   'Estado',
-  'Hora Creación',
+  'Fecha Creación',
   'Hora Aceptación',
   'Tiempo Reacción',
   'Hora Resolución',
@@ -140,6 +140,30 @@ const TABLE_COLUMNS = [
   'Tiempo Total',
   'Responsable',
 ] as const
+
+type FiltroIncidencias = 'todas' | 'pendientes' | 'en_proceso' | 'resueltas'
+
+const CONTADOR_ITEMS: {
+  key: FiltroIncidencias
+  label: string
+  tone: '' | 'pendiente' | 'proceso' | 'resuelta'
+}[] = [
+  { key: 'todas', label: 'Todas', tone: '' },
+  { key: 'pendientes', label: 'Pendientes', tone: 'pendiente' },
+  { key: 'en_proceso', label: 'En proceso', tone: 'proceso' },
+  { key: 'resueltas', label: 'Resueltas', tone: 'resuelta' },
+]
+
+function promedioMinutos(valores: (number | null | undefined)[]): number | null {
+  const valid = valores.filter((v): v is number => v !== null && v !== undefined)
+  if (valid.length === 0) return null
+  return Math.round(valid.reduce((sum, v) => sum + v, 0) / valid.length)
+}
+
+function formatMetricaMinutos(minutos: number | null): string {
+  if (minutos === null) return '—'
+  return `${minutos} min`
+}
 
 function EmptyIncidenciasRow({ message }: { message: string }) {
   return (
@@ -195,9 +219,7 @@ export default function Dashboard() {
   const [incidencias, setIncidencias] = useState<IncidenciaRow[]>([])
   const [now, setNow] = useState(() => new Date())
   const [liveIds, setLiveIds] = useState<Set<string>>(new Set())
-  const [filtro, setFiltro] = useState<'todas' | 'pendientes' | 'en_proceso' | 'resueltas'>(
-    'todas',
-  )
+  const [filtro, setFiltro] = useState<FiltroIncidencias>('todas')
 
   const fetchIncidencias = useCallback(async () => {
     try {
@@ -274,6 +296,25 @@ export default function Dashboard() {
     [incidencias],
   )
 
+  const contadorValor = useCallback(
+    (key: FiltroIncidencias) => {
+      if (key === 'todas') return contadores.total
+      if (key === 'pendientes') return contadores.pendientes
+      if (key === 'en_proceso') return contadores.enProceso
+      return contadores.resueltas
+    },
+    [contadores],
+  )
+
+  const metricas = useMemo(
+    () => ({
+      total: contadores.total,
+      tiempoMedioRespuesta: promedioMinutos(incidencias.map((i) => i.tiempo_reaccion)),
+      tiempoMedioResolucion: promedioMinutos(incidencias.map((i) => i.tiempo_resolucion)),
+    }),
+    [contadores.total, incidencias],
+  )
+
   return (
     <div className="dashboard">
       <div className="dashboard__ambient" aria-hidden>
@@ -305,52 +346,63 @@ export default function Dashboard() {
       </header>
 
       <main className="dashboard__main">
+        <section className="dashboard-overview" aria-label="Resumen del dashboard">
+          <div className="dashboard-section">
+            <h2 className="dashboard-section__heading">Contadores</h2>
+            <div className="counter-grid" role="group" aria-label="Contadores de incidencias">
+              {CONTADOR_ITEMS.map(({ key, label, tone }) => {
+                const activo = filtro === key
+                const toneClass = tone ? ` counter-card--${tone}` : ''
+                return (
+                  <button
+                    key={key}
+                    type="button"
+                    className={`counter-card${toneClass}${activo ? ' counter-card--active' : ''}`}
+                    aria-pressed={activo}
+                    onClick={() => setFiltro(key)}
+                  >
+                    <span className="counter-card__label">{label}</span>
+                    <span className="counter-card__value">{contadorValor(key)}</span>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+
+          <div className="dashboard-section">
+            <h2 className="dashboard-section__heading">Métricas</h2>
+            <div className="kpi-section kpi-section--metrics">
+              <article className="kpi-card kpi-card--gold">
+                <div className="kpi-card__glow" aria-hidden />
+                <p className="kpi-card__label">Total incidencias</p>
+                <p className="kpi-card__number">{metricas.total}</p>
+              </article>
+              <article className="kpi-card kpi-card--cyan">
+                <div className="kpi-card__glow" aria-hidden />
+                <p className="kpi-card__label">Tiempo medio respuesta</p>
+                <p className="kpi-card__number">{formatMetricaMinutos(metricas.tiempoMedioRespuesta)}</p>
+              </article>
+              <article className="kpi-card kpi-card--violet">
+                <div className="kpi-card__glow" aria-hidden />
+                <p className="kpi-card__label">Tiempo medio resolución</p>
+                <p className="kpi-card__number">
+                  {formatMetricaMinutos(metricas.tiempoMedioResolucion)}
+                </p>
+              </article>
+            </div>
+          </div>
+        </section>
+
         <section className="panel incidents-panel" aria-labelledby="incidents-heading">
           <div className="panel__header">
             <div>
               <h2 id="incidents-heading" className="panel__title panel__title--upper">
-                Incidencias
+                Tabla de incidencias
               </h2>
-              <p className="panel__subtitle">Dashboard operativo · datos reales de Supabase</p>
-            </div>
-
-            <div className="filter-bar" role="group" aria-label="Filtrar incidencias">
-              <button
-                type="button"
-                className={`filter-btn${filtro === 'todas' ? ' filter-btn--active' : ''}`}
-                aria-pressed={filtro === 'todas'}
-                onClick={() => setFiltro('todas')}
-              >
-                Todas
-                <span className="filter-btn__count">{contadores.total}</span>
-              </button>
-              <button
-                type="button"
-                className={`filter-btn filter-btn--pendiente${filtro === 'pendientes' ? ' filter-btn--active' : ''}`}
-                aria-pressed={filtro === 'pendientes'}
-                onClick={() => setFiltro('pendientes')}
-              >
-                Pendientes
-                <span className="filter-btn__count">{contadores.pendientes}</span>
-              </button>
-              <button
-                type="button"
-                className={`filter-btn filter-btn--proceso${filtro === 'en_proceso' ? ' filter-btn--active' : ''}`}
-                aria-pressed={filtro === 'en_proceso'}
-                onClick={() => setFiltro('en_proceso')}
-              >
-                En proceso
-                <span className="filter-btn__count">{contadores.enProceso}</span>
-              </button>
-              <button
-                type="button"
-                className={`filter-btn filter-btn--resuelta${filtro === 'resueltas' ? ' filter-btn--active' : ''}`}
-                aria-pressed={filtro === 'resueltas'}
-                onClick={() => setFiltro('resueltas')}
-              >
-                Resueltas
-                <span className="filter-btn__count">{contadores.resueltas}</span>
-              </button>
+              <p className="panel__subtitle">
+                Monitorización en tiempo real · filtro activo:{' '}
+                {CONTADOR_ITEMS.find((c) => c.key === filtro)?.label ?? 'Todas'}
+              </p>
             </div>
           </div>
 
