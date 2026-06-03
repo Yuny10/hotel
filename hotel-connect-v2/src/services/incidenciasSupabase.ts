@@ -242,30 +242,26 @@ export async function insertIncidenciaFromGuestService(
   return mapDbRowToIncidencia(result.data as IncidenciaDbRow)
 }
 
-/** Aceptar: en proceso, responsable, accepted_at y tiempo de reacción. */
-export async function acceptIncidencia(inc: IncidenciaRow, responsable: string): Promise<void> {
+/** Aceptar: en proceso, accepted_at y tiempo_respuesta_min (creación → aceptación). */
+export async function acceptIncidencia(inc: IncidenciaRow, responsable?: string): Promise<void> {
   const horaCreacion = inc.hora_creacion ?? inc.created_at
   if (!horaCreacion) throw new Error('Sin hora de creación')
 
-  const nombre = responsable.trim()
-  if (!nombre) throw new Error('Indica el nombre del responsable')
-
+  const nombre = responsable?.trim() || null
   const horaAceptacion = new Date().toISOString()
   const tiempoReaccion = minutosEntre(horaCreacion, horaAceptacion) ?? 0
 
-  await updateIncidenciaConFallback(
-    inc.id,
-    {
-      estado: 'en_proceso',
-      hora_aceptacion: horaAceptacion,
-      accepted_at: horaAceptacion,
-      trabajador_nombre: nombre,
-      accepted_by: nombre,
-      tiempo_reaccion: tiempoReaccion,
-      tiempo_respuesta_min: tiempoReaccion,
-    },
-    ['hora_aceptacion', 'tiempo_reaccion', 'responsable'],
-  )
+  const payload: Record<string, unknown> = {
+    estado: 'en_proceso',
+    accepted_at: horaAceptacion,
+    tiempo_respuesta_min: tiempoReaccion,
+  }
+  if (nombre) {
+    payload.trabajador_nombre = nombre
+    payload.accepted_by = nombre
+  }
+
+  await updateIncidenciaConFallback(inc.id, payload, ['accepted_by', 'trabajador_nombre'])
 }
 
 /** Resolver: resuelta, hora_resolución (resolved_at) y tiempos finales. */
@@ -279,17 +275,13 @@ export async function resolveIncidencia(inc: IncidenciaRow, responsable?: string
   const tiempoTotal = minutosEntre(horaCreacion, horaResolucion) ?? 0
   const nombre = (responsable ?? inc.responsable)?.trim()
 
-  await updateIncidenciaConFallback(
-    inc.id,
-    {
-      estado: 'resuelta',
-      hora_resolucion: horaResolucion,
-      resolved_at: horaResolucion,
-      resolved_by: nombre ?? inc.resolved_by,
-      tiempo_resolucion: tiempoResolucion,
-      tiempo_resolucion_min: tiempoResolucion,
-      tiempo_total: tiempoTotal,
-    },
-    ['tiempo_resolucion', 'tiempo_total', 'resolved_at'],
-  )
+  const payload: Record<string, unknown> = {
+    estado: 'resuelta',
+    hora_resolucion: horaResolucion,
+    tiempo_resolucion_min: tiempoResolucion,
+    tiempo_total: tiempoTotal,
+  }
+  if (nombre) payload.resolved_by = nombre
+
+  await updateIncidenciaConFallback(inc.id, payload, ['resolved_by', 'tiempo_total'])
 }

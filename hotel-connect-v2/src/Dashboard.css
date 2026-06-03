@@ -179,6 +179,39 @@
   flex-wrap: wrap;
 }
 
+.topbar__responsable {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-left: auto;
+}
+
+.topbar__responsable-label {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.topbar__responsable-input {
+  min-width: 140px;
+  padding: 0.4rem 0.65rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-bright);
+  font-family: var(--font-display);
+  font-size: 0.82rem;
+}
+
+.topbar__responsable-input::placeholder {
+  color: var(--text-muted);
+}
+
+.incident-row__actions {
+  white-space: nowrap;
+}
+
 .topbar__brand-inline {
   display: inline-flex;
   align-items: center;

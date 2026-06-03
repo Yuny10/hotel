@@ -1,8 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { departamentoLabel } from './lib/departments'
 import {
+  acceptIncidencia,
   fetchIncidenciasRows,
   incidenciaIdVisible,
+  isEstadoEnProceso,
+  isEstadoPendiente,
+  resolveIncidencia,
   responsableMostrar,
   type IncidenciaRow,
 } from './services/incidenciasSupabase'
@@ -52,7 +56,7 @@ function esEnProcesoEfectivo(inc: IncidenciaRow): boolean {
 
 function esPendienteEfectivo(inc: IncidenciaRow): boolean {
   if (esResueltaValida(inc) || esEnProcesoEfectivo(inc)) return false
-  return isPendiente(inc.estado) || isResuelta(inc.estado)
+  return isPendiente(inc.estado)
 }
 
 function departamentoMostrar(inc: IncidenciaRow): string {
@@ -85,17 +89,49 @@ type TiemposVista = {
   tiempoTotal: number | null
 }
 
-/** Solo valores persistidos en Supabase; sin cálculos en pantalla. */
-function tiemposVistaDesdeDb(inc: IncidenciaRow): TiemposVista {
-  const tieneAceptacion = !!inc.hora_aceptacion
-  const tieneResolucion = !!inc.hora_resolucion
+function minutosEntre(isoDesde: string | null, hasta: Date): number | null {
+  if (!isoDesde) return null
+  const mins = Math.round((hasta.getTime() - new Date(isoDesde).getTime()) / 60000)
+  return mins >= 0 ? mins : null
+}
+
+function tiempoRespuestaPersistido(inc: IncidenciaRow): number | null {
+  return inc.tiempo_respuesta_min ?? inc.tiempo_reaccion
+}
+
+function tiempoResolucionPersistido(inc: IncidenciaRow): number | null {
+  return inc.tiempo_resolucion_min ?? inc.tiempo_resolucion
+}
+
+/** Pendiente: reacción en vivo. En proceso: resolución en vivo. Resuelta: solo Supabase. */
+function tiemposVistaOperativos(inc: IncidenciaRow, ahora: Date): TiemposVista {
+  if (esPendienteEfectivo(inc)) {
+    return {
+      horaAceptacion: null,
+      horaResolucion: null,
+      tiempoReaccion: minutosEntre(inc.hora_creacion, ahora),
+      tiempoResolucion: null,
+      tiempoTotal: null,
+    }
+  }
+
+  if (esEnProcesoEfectivo(inc) && !esResueltaValida(inc)) {
+    const horaAceptacion = inc.hora_aceptacion ?? inc.accepted_at
+    return {
+      horaAceptacion,
+      horaResolucion: null,
+      tiempoReaccion: tiempoRespuestaPersistido(inc),
+      tiempoResolucion: minutosEntre(horaAceptacion, ahora),
+      tiempoTotal: null,
+    }
+  }
 
   return {
-    horaAceptacion: tieneAceptacion ? inc.hora_aceptacion : null,
-    horaResolucion: tieneResolucion ? inc.hora_resolucion : null,
-    tiempoReaccion: tieneAceptacion ? inc.tiempo_reaccion : null,
-    tiempoResolucion: tieneResolucion ? inc.tiempo_resolucion : null,
-    tiempoTotal: tieneResolucion ? inc.tiempo_total : null,
+    horaAceptacion: inc.hora_aceptacion ?? inc.accepted_at,
+    horaResolucion: inc.hora_resolucion,
+    tiempoReaccion: tiempoRespuestaPersistido(inc),
+    tiempoResolucion: tiempoResolucionPersistido(inc),
+    tiempoTotal: inc.tiempo_total,
   }
 }
 
@@ -139,7 +175,10 @@ const TABLE_COLUMNS = [
   'Tiempo Resolución',
   'Tiempo Total',
   'Responsable',
+  'Acciones',
 ] as const
+
+const STORAGE_RESPONSABLE = 'hc_responsable_dashboard'
 
 type FiltroIncidencias = 'todas' | 'pendientes' | 'en_proceso' | 'resueltas'
 
@@ -214,6 +253,14 @@ export default function Dashboard() {
   const [now, setNow] = useState(() => new Date())
   const [liveIds, setLiveIds] = useState<Set<string>>(new Set())
   const [filtro, setFiltro] = useState<FiltroIncidencias>('todas')
+  const [actionId, setActionId] = useState<string | null>(null)
+  const [nombreResponsable, setNombreResponsable] = useState(
+    () => localStorage.getItem(STORAGE_RESPONSABLE) ?? '',
+  )
+
+  useEffect(() => {
+    localStorage.setItem(STORAGE_RESPONSABLE, nombreResponsable)
+  }, [nombreResponsable])
 
   const fetchIncidencias = useCallback(async () => {
     try {
@@ -303,11 +350,45 @@ export default function Dashboard() {
   const metricas = useMemo(
     () => ({
       total: contadores.total,
-      tiempoMedioRespuesta: promedioMinutos(incidencias.map((i) => i.tiempo_reaccion)),
-      tiempoMedioResolucion: promedioMinutos(incidencias.map((i) => i.tiempo_resolucion)),
+      tiempoMedioRespuesta: promedioMinutos(
+        incidencias
+          .map((i) => tiempoRespuestaPersistido(i))
+          .filter((v): v is number => v !== null),
+      ),
+      tiempoMedioResolucion: promedioMinutos(
+        incidencias
+          .map((i) => tiempoResolucionPersistido(i))
+          .filter((v): v is number => v !== null),
+      ),
     }),
     [contadores.total, incidencias],
   )
+
+  const handleAccept = async (inc: IncidenciaRow) => {
+    if (!isEstadoPendiente(inc.estado)) return
+    setActionId(inc.id)
+    try {
+      const nombre = nombreResponsable.trim() || undefined
+      await acceptIncidencia(inc, nombre)
+      await fetchIncidencias()
+    } catch (error) {
+      console.error('Error al aceptar incidencia:', error)
+    }
+    setActionId(null)
+  }
+
+  const handleResolve = async (inc: IncidenciaRow) => {
+    if (!isEstadoEnProceso(inc.estado)) return
+    setActionId(inc.id)
+    try {
+      const nombre = nombreResponsable.trim() || inc.responsable || undefined
+      await resolveIncidencia(inc, nombre)
+      await fetchIncidencias()
+    } catch (error) {
+      console.error('Error al resolver incidencia:', error)
+    }
+    setActionId(null)
+  }
 
   return (
     <div className="dashboard">
@@ -336,6 +417,17 @@ export default function Dashboard() {
           <time className="topbar__datetime" dateTime={now.toISOString()}>
             {formatClock(now).slice(0, 5)} · {formatDateShort(now)}
           </time>
+          <label className="topbar__responsable">
+            <span className="topbar__responsable-label">Responsable</span>
+            <input
+              type="text"
+              className="topbar__responsable-input"
+              value={nombreResponsable}
+              onChange={(e) => setNombreResponsable(e.target.value)}
+              placeholder="Opcional"
+              autoComplete="name"
+            />
+          </label>
         </div>
       </header>
 
@@ -422,7 +514,7 @@ export default function Dashboard() {
                 ) : (
                   tableRows.map((inc) => {
                     const isLive = liveIds.has(inc.id)
-                    const tiempos = tiemposVistaDesdeDb(inc)
+                    const tiempos = tiemposVistaOperativos(inc, now)
                     const estadoCls = estadoEfectivoClass(inc)
                     const pendiente = esPendienteEfectivo(inc)
                     const enProceso = esEnProcesoEfectivo(inc)
@@ -454,6 +546,7 @@ export default function Dashboard() {
                         <td className="incident-row__metric">
                           <TimeChip
                             minutos={tiempos.tiempoReaccion}
+                            activo={pendiente}
                             destacado={pendiente && tiempos.tiempoReaccion !== null}
                           />
                         </td>
@@ -461,6 +554,7 @@ export default function Dashboard() {
                         <td className="incident-row__metric">
                           <TimeChip
                             minutos={tiempos.tiempoResolucion}
+                            activo={enProceso && !resuelta}
                             destacado={enProceso && tiempos.tiempoResolucion !== null}
                           />
                         </td>
@@ -471,6 +565,30 @@ export default function Dashboard() {
                           />
                         </td>
                         <td className="incident-row__responsable">{responsableMostrar(inc)}</td>
+                        <td className="incident-row__actions">
+                          <div className="incident-actions">
+                            {isEstadoPendiente(inc.estado) && (
+                              <button
+                                type="button"
+                                className="action-btn action-btn--accept"
+                                disabled={actionId === inc.id}
+                                onClick={() => void handleAccept(inc)}
+                              >
+                                {actionId === inc.id ? 'Guardando…' : 'ACEPTAR'}
+                              </button>
+                            )}
+                            {isEstadoEnProceso(inc.estado) && (
+                              <button
+                                type="button"
+                                className="action-btn action-btn--resolve"
+                                disabled={actionId === inc.id}
+                                onClick={() => void handleResolve(inc)}
+                              >
+                                {actionId === inc.id ? 'Guardando…' : 'RESOLVER'}
+                              </button>
+                            )}
+                          </div>
+                        </td>
                       </tr>
                     )
                   })
