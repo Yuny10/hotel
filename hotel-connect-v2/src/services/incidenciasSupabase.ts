@@ -122,6 +122,21 @@ function parseHabitacion(room: string): number | string {
   return Number.isFinite(n) ? n : room
 }
 
+/** Tras vaciar la demo, la primera incidencia real usa id 1 → INC-0001. */
+async function nextIncidenciaId(): Promise<number> {
+  const { data, error } = await supabase
+    .from('incidencias')
+    .select('id')
+    .order('id', { ascending: false })
+    .limit(1)
+
+  if (error || !data?.length) return 1
+
+  const raw = data[0].id
+  const n = typeof raw === 'number' ? raw : Number.parseInt(String(raw), 10)
+  return Number.isFinite(n) ? n + 1 : 1
+}
+
 async function updateIncidenciaConFallback(
   id: string,
   payload: Record<string, unknown>,
@@ -213,6 +228,7 @@ export async function insertIncidenciaFromGuestService(
   const descripcion = spec.buildDescripcion(habitacion)
 
   const baseRow: Record<string, unknown> = {
+    id: await nextIncidenciaId(),
     habitacion,
     tipo_incidencia: spec.tipo_incidencia,
     departamento: spec.departamento,
