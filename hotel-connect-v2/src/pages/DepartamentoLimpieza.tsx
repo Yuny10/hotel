@@ -159,7 +159,7 @@ export default function DepartamentoLimpieza() {
     if (!isEstadoEnProceso(inc.estado)) return
     setActionId(inc.id)
     try {
-      await resolveIncidencia(inc, nombreTrabajador.trim() || inc.responsable || undefined)
+      await resolveIncidencia(inc, nombreTrabajador.trim() || inc.resolved_by || undefined)
       await fetchIncidencias()
     } catch (error) {
       console.error('Error al resolver:', error)

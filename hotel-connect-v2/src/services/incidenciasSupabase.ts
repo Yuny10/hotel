@@ -32,15 +32,19 @@ export type IncidenciaRow = {
   tiempo_respuesta_min: number | null
   tiempo_resolucion_min: number | null
   observaciones: string | null
-  /** Nombre del trabajador que aceptó la incidencia. */
-  responsable: string | null
+  /** @deprecated Legado (aceptación antigua). UI: accepted_by. */
   trabajador_nombre: string | null
   hotel_id: string | null
   idioma?: string | null
 }
 
 export function responsableMostrar(inc: IncidenciaRow): string {
-  const nombre = inc.responsable?.trim()
+  const nombre = inc.accepted_by?.trim()
+  return nombre ? nombre : '—'
+}
+
+export function operarioMostrar(inc: IncidenciaRow): string {
+  const nombre = inc.resolved_by?.trim()
   return nombre ? nombre : '—'
 }
 
@@ -51,10 +55,10 @@ export function incidenciaIdVisible(id: string | number): string {
   return `INC-${String(id).replace(/\s+/g, '').slice(0, 8).toUpperCase()}`
 }
 
-const SELECT_FIELDS_BASE =
+const SELECT_FIELDS_LEGACY =
   'id, habitacion, tipo_incidencia, departamento, estado, prioridad, hora_inicio, accepted_at, accepted_by, resolved_by, hora_resolucion, tiempo_respuesta_min, tiempo_resolucion_min, observaciones, trabajador_nombre, hotel_id, idioma'
 
-const SELECT_FIELDS = `${SELECT_FIELDS_BASE}, tiempo_total`
+const SELECT_FIELDS = `${SELECT_FIELDS_LEGACY}, tiempo_total`
 
 type IncidenciaDbRow = {
   id: string
@@ -107,7 +111,6 @@ function mapDbRowToIncidencia(row: IncidenciaDbRow): IncidenciaRow {
     tiempo_respuesta_min: row.tiempo_respuesta_min,
     tiempo_resolucion_min: row.tiempo_resolucion_min,
     observaciones: row.observaciones,
-    responsable: row.trabajador_nombre ?? row.accepted_by ?? null,
     trabajador_nombre: row.trabajador_nombre,
     hotel_id: row.hotel_id,
     idioma: row.idioma,
@@ -139,16 +142,12 @@ async function updateIncidenciaConFallback(
 }
 
 export async function fetchIncidenciasRows(): Promise<IncidenciaRow[]> {
-  let result = await supabase
-    .from('incidencias')
-    .select(SELECT_FIELDS)
-    .order('hora_inicio', { ascending: false, nullsFirst: false })
+  const order = { ascending: false, nullsFirst: false } as const
+  const selects = [SELECT_FIELDS, SELECT_FIELDS_LEGACY]
+  let result = await supabase.from('incidencias').select(selects[0]).order('hora_inicio', order)
 
-  if (result.error) {
-    result = await supabase
-      .from('incidencias')
-      .select(SELECT_FIELDS_BASE)
-      .order('hora_inicio', { ascending: false, nullsFirst: false })
+  for (let i = 1; result.error && i < selects.length; i++) {
+    result = await supabase.from('incidencias').select(selects[i]).order('hora_inicio', order)
   }
 
   if (result.error) {
@@ -256,24 +255,23 @@ export async function acceptIncidencia(inc: IncidenciaRow, responsable?: string)
     accepted_at: horaAceptacion,
     tiempo_respuesta_min: tiempoReaccion,
   }
-  if (nombre) {
-    payload.trabajador_nombre = nombre
-    payload.accepted_by = nombre
-  }
+  if (nombre) payload.accepted_by = nombre
 
-  await updateIncidenciaConFallback(inc.id, payload, ['accepted_by', 'trabajador_nombre'])
+  await updateIncidenciaConFallback(inc.id, payload, ['accepted_by'])
 }
 
-/** Resolver: resuelta, hora_resolución (resolved_at) y tiempos finales. */
-export async function resolveIncidencia(inc: IncidenciaRow, responsable?: string): Promise<void> {
+/** Resolver: resuelta, hora_resolución y operario que realizó el trabajo. */
+export async function resolveIncidencia(inc: IncidenciaRow, operario?: string): Promise<void> {
   const horaCreacion = inc.hora_creacion ?? inc.created_at
   const horaAceptacion = inc.hora_aceptacion ?? inc.accepted_at
   if (!horaAceptacion) throw new Error('Sin hora de aceptación')
 
   const horaResolucion = new Date().toISOString()
   const tiempoResolucion = minutosEntre(horaAceptacion, horaResolucion) ?? 0
-  const tiempoTotal = minutosEntre(horaCreacion, horaResolucion) ?? 0
-  const nombre = (responsable ?? inc.responsable)?.trim()
+  const tiempoRespuesta =
+    inc.tiempo_respuesta_min ?? inc.tiempo_reaccion ?? minutosEntre(horaCreacion, horaAceptacion) ?? 0
+  const tiempoTotal = tiempoRespuesta + tiempoResolucion
+  const nombre = operario?.trim()
 
   const payload: Record<string, unknown> = {
     estado: 'resuelta',

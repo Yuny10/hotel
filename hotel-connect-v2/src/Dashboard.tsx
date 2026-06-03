@@ -1,12 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { departamentoLabel } from './lib/departments'
 import {
-  acceptIncidencia,
   fetchIncidenciasRows,
   incidenciaIdVisible,
-  isEstadoEnProceso,
-  isEstadoPendiente,
-  resolveIncidencia,
+  operarioMostrar,
   responsableMostrar,
   type IncidenciaRow,
 } from './services/incidenciasSupabase'
@@ -126,12 +123,20 @@ function tiemposVistaOperativos(inc: IncidenciaRow, ahora: Date): TiemposVista {
     }
   }
 
+  const tiempoRespuesta = tiempoRespuestaPersistido(inc)
+  const tiempoTrabajo = tiempoResolucionPersistido(inc)
+  const tiempoTotal =
+    inc.tiempo_total ??
+    (tiempoRespuesta !== null && tiempoTrabajo !== null
+      ? tiempoRespuesta + tiempoTrabajo
+      : null)
+
   return {
     horaAceptacion: inc.hora_aceptacion ?? inc.accepted_at,
     horaResolucion: inc.hora_resolucion,
-    tiempoReaccion: tiempoRespuestaPersistido(inc),
-    tiempoResolucion: tiempoResolucionPersistido(inc),
-    tiempoTotal: inc.tiempo_total,
+    tiempoReaccion: tiempoRespuesta,
+    tiempoResolucion: tiempoTrabajo,
+    tiempoTotal,
   }
 }
 
@@ -165,20 +170,15 @@ function formatDateShort(date: Date): string {
 const TABLE_COLUMNS = [
   'ID Incidencia',
   'Habitación',
-  'Tipo Incidencia',
+  'Incidencia',
   'Departamento',
   'Estado',
-  'Fecha Creación',
-  'Hora Aceptación',
-  'Tiempo Reacción',
-  'Hora Resolución',
-  'Tiempo Resolución',
+  'Tiempo Respuesta',
+  'Tiempo Trabajo',
   'Tiempo Total',
+  'Operario',
   'Responsable',
-  'Acciones',
 ] as const
-
-const STORAGE_RESPONSABLE = 'hc_responsable_dashboard'
 
 type FiltroIncidencias = 'todas' | 'pendientes' | 'en_proceso' | 'resueltas'
 
@@ -214,19 +214,6 @@ function EmptyIncidenciasRow({ message }: { message: string }) {
   )
 }
 
-function formatHora(iso: string | null): string {
-  if (!iso) return '—'
-  return new Date(iso).toLocaleString('es-ES', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-    hour12: false,
-  })
-}
-
 function TimeChip({
   minutos,
   activo = false,
@@ -253,14 +240,6 @@ export default function Dashboard() {
   const [now, setNow] = useState(() => new Date())
   const [liveIds, setLiveIds] = useState<Set<string>>(new Set())
   const [filtro, setFiltro] = useState<FiltroIncidencias>('todas')
-  const [actionId, setActionId] = useState<string | null>(null)
-  const [nombreResponsable, setNombreResponsable] = useState(
-    () => localStorage.getItem(STORAGE_RESPONSABLE) ?? '',
-  )
-
-  useEffect(() => {
-    localStorage.setItem(STORAGE_RESPONSABLE, nombreResponsable)
-  }, [nombreResponsable])
 
   const fetchIncidencias = useCallback(async () => {
     try {
@@ -364,32 +343,6 @@ export default function Dashboard() {
     [contadores.total, incidencias],
   )
 
-  const handleAccept = async (inc: IncidenciaRow) => {
-    if (!isEstadoPendiente(inc.estado)) return
-    setActionId(inc.id)
-    try {
-      const nombre = nombreResponsable.trim() || undefined
-      await acceptIncidencia(inc, nombre)
-      await fetchIncidencias()
-    } catch (error) {
-      console.error('Error al aceptar incidencia:', error)
-    }
-    setActionId(null)
-  }
-
-  const handleResolve = async (inc: IncidenciaRow) => {
-    if (!isEstadoEnProceso(inc.estado)) return
-    setActionId(inc.id)
-    try {
-      const nombre = nombreResponsable.trim() || inc.responsable || undefined
-      await resolveIncidencia(inc, nombre)
-      await fetchIncidencias()
-    } catch (error) {
-      console.error('Error al resolver incidencia:', error)
-    }
-    setActionId(null)
-  }
-
   return (
     <div className="dashboard">
       <div className="dashboard__ambient" aria-hidden>
@@ -417,17 +370,6 @@ export default function Dashboard() {
           <time className="topbar__datetime" dateTime={now.toISOString()}>
             {formatClock(now).slice(0, 5)} · {formatDateShort(now)}
           </time>
-          <label className="topbar__responsable">
-            <span className="topbar__responsable-label">Responsable</span>
-            <input
-              type="text"
-              className="topbar__responsable-input"
-              value={nombreResponsable}
-              onChange={(e) => setNombreResponsable(e.target.value)}
-              placeholder="Opcional"
-              autoComplete="name"
-            />
-          </label>
         </div>
       </header>
 
@@ -470,7 +412,7 @@ export default function Dashboard() {
               </article>
               <article className="kpi-card kpi-card--violet">
                 <div className="kpi-card__glow" aria-hidden />
-                <p className="kpi-card__label">Tiempo medio resolución</p>
+                <p className="kpi-card__label">Tiempo medio trabajo</p>
                 <p className="kpi-card__number">
                   {formatMetricaMinutos(metricas.tiempoMedioResolucion)}
                 </p>
@@ -486,7 +428,7 @@ export default function Dashboard() {
                 Tabla de incidencias
               </h2>
               <p className="panel__subtitle">
-                Monitorización en tiempo real · filtro activo:{' '}
+                Vista de solo lectura para dirección · filtro:{' '}
                 {CONTADOR_ITEMS.find((c) => c.key === filtro)?.label ?? 'Todas'}
               </p>
             </div>
@@ -541,8 +483,6 @@ export default function Dashboard() {
                             {estadoEfectivoLabel(inc)}
                           </span>
                         </td>
-                        <td className="incident-row__time">{formatHora(inc.hora_creacion)}</td>
-                        <td className="incident-row__time">{formatHora(tiempos.horaAceptacion)}</td>
                         <td className="incident-row__metric">
                           <TimeChip
                             minutos={tiempos.tiempoReaccion}
@@ -550,7 +490,6 @@ export default function Dashboard() {
                             destacado={pendiente && tiempos.tiempoReaccion !== null}
                           />
                         </td>
-                        <td className="incident-row__time">{formatHora(tiempos.horaResolucion)}</td>
                         <td className="incident-row__metric">
                           <TimeChip
                             minutos={tiempos.tiempoResolucion}
@@ -564,31 +503,8 @@ export default function Dashboard() {
                             destacado={resuelta && tiempos.tiempoTotal !== null}
                           />
                         </td>
+                        <td className="incident-row__operario">{operarioMostrar(inc)}</td>
                         <td className="incident-row__responsable">{responsableMostrar(inc)}</td>
-                        <td className="incident-row__actions">
-                          <div className="incident-actions">
-                            {isEstadoPendiente(inc.estado) && (
-                              <button
-                                type="button"
-                                className="action-btn action-btn--accept"
-                                disabled={actionId === inc.id}
-                                onClick={() => void handleAccept(inc)}
-                              >
-                                {actionId === inc.id ? 'Guardando…' : 'ACEPTAR'}
-                              </button>
-                            )}
-                            {isEstadoEnProceso(inc.estado) && (
-                              <button
-                                type="button"
-                                className="action-btn action-btn--resolve"
-                                disabled={actionId === inc.id}
-                                onClick={() => void handleResolve(inc)}
-                              >
-                                {actionId === inc.id ? 'Guardando…' : 'RESOLVER'}
-                              </button>
-                            )}
-                          </div>
-                        </td>
                       </tr>
                     )
                   })
