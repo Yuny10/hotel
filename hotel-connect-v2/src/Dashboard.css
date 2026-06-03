@@ -234,6 +234,11 @@
   border-bottom: none !important;
 }
 
+.incidents-table__placeholder-row .incidents-table__empty {
+  min-height: 220px;
+  vertical-align: middle;
+}
+
 /* ─── Main content ─── */
 
 .dashboard__main {
@@ -431,6 +436,12 @@
   border-bottom: 1px solid var(--border);
 }
 
+.incidents-panel .panel__header {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 1.1rem;
+}
+
 .panel__title {
   margin: 0;
   font-size: 1.1rem;
@@ -465,6 +476,7 @@
 .table-wrap {
   flex: 1;
   overflow: auto;
+  min-height: 280px;
   max-height: min(72vh, 900px);
   padding: 0 0.5rem 1rem;
 }

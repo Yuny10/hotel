@@ -126,6 +126,21 @@ function formatDateShort(date: Date): string {
   })
 }
 
+const TABLE_COLUMNS = [
+  'ID incidencia',
+  'Habitación',
+  'Tipo incidencia',
+  'Departamento',
+  'Estado',
+  'Hora creación',
+  'Hora aceptación',
+  'Tiempo reacción',
+  'Hora resolución',
+  'Tiempo resolución',
+  'Tiempo total',
+  'Responsable',
+] as const
+
 function formatHora(iso: string | null): string {
   if (!iso) return '—'
   return new Date(iso).toLocaleString('es-ES', {
@@ -326,37 +341,22 @@ export default function Dashboard() {
             </div>
           </div>
 
-          <div className="table-wrap">
+          <div className="table-wrap" role="region" aria-label="Tabla de incidencias">
             <table className="incidents-table">
               <thead>
                 <tr>
-                  <th scope="col">ID incidencia</th>
-                  <th scope="col">Hab.</th>
-                  <th scope="col">Tipo</th>
-                  <th scope="col">Depto.</th>
-                  <th scope="col">Estado</th>
-                  <th scope="col">Hora creación</th>
-                  <th scope="col">Hora acept.</th>
-                  <th scope="col">T. reacción</th>
-                  <th scope="col">Hora resol.</th>
-                  <th scope="col">T. resol.</th>
-                  <th scope="col">Total</th>
-                  <th scope="col">Responsable</th>
+                  {TABLE_COLUMNS.map((label) => (
+                    <th key={label} scope="col">
+                      {label}
+                    </th>
+                  ))}
                 </tr>
               </thead>
               <tbody>
-                {loading ? (
-                  <tr>
-                    <td colSpan={12} className="incidents-table__empty">
-                      Cargando incidencias…
-                    </td>
-                  </tr>
-                ) : tableRows.length === 0 ? (
-                  <tr>
-                    <td colSpan={12} className="incidents-table__empty">
-                      {incidencias.length === 0
-                        ? 'Sin incidencias activas'
-                        : 'No hay incidencias para este filtro.'}
+                {loading || tableRows.length === 0 ? (
+                  <tr className="incidents-table__placeholder-row">
+                    <td colSpan={TABLE_COLUMNS.length} className="incidents-table__empty">
+                      {loading ? 'Cargando incidencias…' : 'Sin incidencias activas'}
                     </td>
                   </tr>
                 ) : (
