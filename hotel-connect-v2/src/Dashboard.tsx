@@ -127,19 +127,35 @@ function formatDateShort(date: Date): string {
 }
 
 const TABLE_COLUMNS = [
-  'ID incidencia',
+  'ID Incidencia',
   'Habitación',
-  'Tipo incidencia',
+  'Tipo Incidencia',
   'Departamento',
   'Estado',
-  'Hora creación',
-  'Hora aceptación',
-  'Tiempo reacción',
-  'Hora resolución',
-  'Tiempo resolución',
-  'Tiempo total',
+  'Hora Creación',
+  'Hora Aceptación',
+  'Tiempo Reacción',
+  'Hora Resolución',
+  'Tiempo Resolución',
+  'Tiempo Total',
   'Responsable',
 ] as const
+
+function EmptyIncidenciasRow({ message }: { message: string }) {
+  return (
+    <tr className="incidents-table__empty-row">
+      {TABLE_COLUMNS.map((col, index) => (
+        <td key={col} className="incidents-table__empty-slot">
+          {index === 0 ? (
+            <span className="incidents-table__empty-banner">{message}</span>
+          ) : (
+            '\u00a0'
+          )}
+        </td>
+      ))}
+    </tr>
+  )
+}
 
 function formatHora(iso: string | null): string {
   if (!iso) return '—'
@@ -177,7 +193,6 @@ function TimeChip({
 
 export default function Dashboard() {
   const [incidencias, setIncidencias] = useState<IncidenciaRow[]>([])
-  const [loading, setLoading] = useState(true)
   const [now, setNow] = useState(() => new Date())
   const [liveIds, setLiveIds] = useState<Set<string>>(new Set())
   const [filtro, setFiltro] = useState<'todas' | 'pendientes' | 'en_proceso' | 'resueltas'>(
@@ -204,8 +219,6 @@ export default function Dashboard() {
       })
     } catch {
       // Mantiene última lista válida si falla un refresco puntual.
-    } finally {
-      setLoading(false)
     }
   }, [])
 
@@ -343,6 +356,11 @@ export default function Dashboard() {
 
           <div className="table-wrap" role="region" aria-label="Tabla de incidencias">
             <table className="incidents-table">
+              <colgroup>
+                {TABLE_COLUMNS.map((col) => (
+                  <col key={col} className="incidents-table__col" />
+                ))}
+              </colgroup>
               <thead>
                 <tr>
                   {TABLE_COLUMNS.map((label) => (
@@ -353,12 +371,8 @@ export default function Dashboard() {
                 </tr>
               </thead>
               <tbody>
-                {loading || tableRows.length === 0 ? (
-                  <tr className="incidents-table__placeholder-row">
-                    <td colSpan={TABLE_COLUMNS.length} className="incidents-table__empty">
-                      {loading ? 'Cargando incidencias…' : 'Sin incidencias activas'}
-                    </td>
-                  </tr>
+                {tableRows.length === 0 ? (
+                  <EmptyIncidenciasRow message="Sin incidencias activas" />
                 ) : (
                   tableRows.map((inc) => {
                     const isLive = liveIds.has(inc.id)
